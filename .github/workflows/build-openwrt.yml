@@ -87,7 +87,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ env.DEVICE1 }}-${{ env.FILE_DATE }}
+        tag_name: ${{ env.DEVICE1 }}${{ env.FILE_DATE }}
         body: 192.168.123.1_password
         files: openwrt/bin/targets/*
     
