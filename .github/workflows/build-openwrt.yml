@@ -74,7 +74,7 @@ jobs:
       run: |
         cd openwrt
         make -j$(nproc)
-        FILE_DATE=_$(date +"%Y%m%d%H%M")
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
