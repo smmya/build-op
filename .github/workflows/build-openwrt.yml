@@ -24,7 +24,7 @@ jobs:
    new3:
     runs-on: ubuntu-20.04
 
-   steps:
+    steps:
     - name: Checkout
       uses: actions/checkout@master
     
