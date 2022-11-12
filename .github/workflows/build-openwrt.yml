@@ -21,13 +21,13 @@ env:
 
 jobs:
    new3:
-   runs-on: ubuntu-20.04
+    runs-on: ubuntu-20.04
 
    steps:
     - name: Checkout
       uses: actions/checkout@master
     
-    -name: load environment
+    - name: load environment
       env:
           DEBIAN_FRONTEND: noninteractive
       run: |
@@ -55,13 +55,13 @@ jobs:
         ./scripts/feeds install -a
         ./scripts/feeds install -a
 
-    -name: Personalized script
+    - name: Personalized script
       run: |
         cd opnewrt
         sed -i 's/192.168.1.1/192.168.123.1/g' package/base-files/files/bin/config_generate
         neofetch
 
-    -name: Download package
+    - name: Download package
       run: |
         cd openwrt
         make defconfig
@@ -69,7 +69,7 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
-    -name: Compile the firmware
+    - name: Compile the firmware
       run: |
         cd openwrt
         make -j$(nproc)
@@ -90,12 +90,12 @@ jobs:
         body: 192.168.123.1_password
         files: openwrt/bin/targets/*
     
-     - name: Delete workflow runs
+    - name: Delete workflow runs
       uses: GitRML/delete-workflow-runs@main
       with:
         keep_minimum_runs: 15
 
-     - name: Remove old Releases
+    - name: Remove old Releases
       uses: dev-drprasad/delete-older-releases@v0.1.0
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
