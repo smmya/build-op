@@ -83,15 +83,17 @@ jobs:
       with:
         name: Op-${{ env.DEVICE1 }}-${{ env.FILE_DATE }}
         path: openwrt/bin
+        
+    - name: organize
+      run: |
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
     
     - name: Upload firmware to release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ env.DEVICE1 }}${{ env.FILE_DATE }}
-        body: 192.168.123.1_password
-        files: $GITHUB_WORKSPACE/openwrt/bin/targets/*
+        artifacts: "openwrt/bin/targets/*/*/"
+        body: "192.168.123.1_password"
     
     - name: Delete workflow runs
       uses: GitRML/delete-workflow-runs@main
