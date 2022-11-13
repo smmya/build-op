@@ -93,7 +93,7 @@ jobs:
       uses: ncipollo/release-action@v1
       with:
         tag: "${{ env.DEVICE1 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/"
+        artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.1_password"
     
     - name: Delete workflow runs
