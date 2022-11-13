@@ -81,7 +81,7 @@ jobs:
     - name : Upload artifact
       uses: actions/upload-artifact@master
       with:
-        name: Op-${{ env.DEVICE1 }}-${{ env.FILE_DATE }}
+        name: Op-${{ env.DEVICE1 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
         
     - name: organize
@@ -92,6 +92,7 @@ jobs:
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
+        tag: "${{ env.DEVICE1 }}--${{ env.FILE_DATE }}"
         artifacts: "openwrt/bin/targets/*/*/"
         body: "192.168.123.1_password"
     
