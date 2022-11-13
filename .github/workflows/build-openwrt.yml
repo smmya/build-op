@@ -97,19 +97,6 @@ jobs:
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.1_password"
     
-    - name: Delete workflow runs
-      uses: GitRML/delete-workflow-runs@main
-      with:
-        keep_minimum_runs: 15
-
-    - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@v0.1.0
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 15
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
         
    r3g:
@@ -141,13 +128,13 @@ jobs:
 
     - name: deal with config
       run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE1 }}/.config $GITHUB_WORKSPACE/openwrt/
+        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE2 }}/.config $GITHUB_WORKSPACE/openwrt/
         cd openwrt
         echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
         echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
         ./scripts/feeds update -a
         ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE1 }}/.config $GITHUB_WORKSPACE/openwrt/
+        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE2 }}/.config $GITHUB_WORKSPACE/openwrt/
         ./scripts/feeds install -a
 
     - name: Personalized script
@@ -173,7 +160,7 @@ jobs:
     - name : Upload artifact
       uses: actions/upload-artifact@master
       with:
-        name: Op-${{ env.DEVICE1 }}--${{ env.FILE_DATE }}
+        name: Op-${{ env.DEVICE2 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
         
     - name: organize
@@ -184,7 +171,7 @@ jobs:
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
-        tag: "${{ env.DEVICE1 }}--${{ env.FILE_DATE }}"
+        tag: "${{ env.DEVICE2 }}--${{ env.FILE_DATE }}"
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.1_password"
     
