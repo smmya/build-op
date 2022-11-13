@@ -20,6 +20,8 @@ env:
   DEVICE2: r3g
   DEVICE3: n1-docker
   DEVICE4: n1-flash
+  UPLOAD_DOCKERHUB: true
+  UPLOAD_OUTPUT: true
 
 jobs:
    new3:
@@ -82,6 +84,7 @@ jobs:
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
+      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
       with:
         name: Op-${{ env.DEVICE1 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
@@ -160,6 +163,7 @@ jobs:
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
+      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
       with:
         name: Op-${{ env.DEVICE2 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
@@ -258,6 +262,7 @@ jobs:
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
+      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
       with:
         name: Op-${{ env.DEVICE3 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
@@ -353,6 +358,7 @@ jobs:
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
+      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
       with:
         name: Op-${{ env.DEVICE4 }}--${{ env.FILE_DATE }}
         path: openwrt/bin
