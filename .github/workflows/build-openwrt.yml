@@ -13,6 +13,8 @@ on:
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
+  REPO_URL_LIENOL: https://github.com/Lienol/openwrt
+  REPO_BRANCH_LIENOL: 21.02
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   TZ: Asia/Shanghai
@@ -48,7 +50,7 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        git clone $REPO_URL_LIENOL -b $REPO_BRANCH_LIENOL openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
 
@@ -128,7 +130,7 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        git clone $REPO_URL_LIENOL -b $REPO_BRANCH_LIENOL openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
     - name: deal with config
