@@ -72,20 +72,22 @@ jobs:
          
     - name: sync image
       run: |
+       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-default-rootfs.tar.gz
        sudo -E cp -r /opt/openwrt_packit/output/* $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64
+       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-default-rootfs.tar.gz
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
       if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
       with:
-        name: Op-${{ env.DEVICE4 }}--${{ env.FILE_DATE }}
+        name: Op-${{ env.DEVICE4 }}
         path: openwrt/bin
         
     
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
-        tag: "${{ env.DEVICE4 }}--${{ env.FILE_DATE }}"
+        tag: "${{ env.DEVICE4 }}"
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.1.1_password"
   
