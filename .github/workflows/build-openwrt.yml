@@ -90,5 +90,5 @@ jobs:
       with:
         tag: "${{ env.DEVICE4 }}"
         artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.1.1_password"
+        body: "192.168.123.253_password"
   
