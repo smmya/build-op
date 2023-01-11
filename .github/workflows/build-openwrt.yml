@@ -54,7 +54,7 @@ jobs:
       working-directory: /workdir
       run: |
         df -hT $PWD
-        git clone $REPO_URL_IMMORTALWRT -b REPO_BRANCH_IMMORTALWRT openwrt
+        git clone $REPO_URL_IMMORTALWRT -b $REPO_BRANCH_IMMORTALWRT openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
 
