@@ -30,6 +30,8 @@ jobs:
   
    n1-flash:
     runs-on: ubuntu-20.04
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout
