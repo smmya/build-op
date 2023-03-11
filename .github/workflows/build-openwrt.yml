@@ -11,7 +11,7 @@ on:
         default: 'false'
         
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: master
   REPO_URL_LIENOL: https://github.com/Lienol/openwrt
   REPO_BRANCH_LIENOL: 21.02
