@@ -12,7 +12,7 @@ on:
         
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH: master
+  REPO_BRANCH: openwrt-21.02
   REPO_URL_LIENOL: https://github.com/Lienol/openwrt
   REPO_BRANCH_LIENOL: 21.02
   FEEDS_CONF: feeds.conf.default
