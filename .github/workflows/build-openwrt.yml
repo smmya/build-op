@@ -252,7 +252,7 @@ jobs:
       run: |
        cd $GITHUB_WORKSPACE/ && sudo mkdir make_docker
        cd $GITHUB_WORKSPACE/make_docker && sudo -E git clone -b main https://github.com/smmya/make_op_n1 make_op_n1-main
-       sudo -E cp $GITHUB_WORKSPACE/openwrt-armvirt-64-generic-rootfs.tar.gz  $GITHUB_WORKSPACE/make_docker/make_op_n1-main/
+       sudo -E cp $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz  $GITHUB_WORKSPACE/make_docker/make_op_n1-main/
        cd $GITHUB_WORKSPACE/make_docker/make_op_n1-main && sudo -E bash build.sh latest
        cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && sudo -E mv openwrt-armvirt-64-generic-rootfs.tar.gz docker-openwrt-armvirt-64-generic-rootfs.tar.gz
        
@@ -358,7 +358,7 @@ jobs:
          
     - name: sync image
       run: |
-       cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && sudo -E mv openwrt-armvirt-64-default-rootfs.tar.gz flash-openwrt-armvirt-64-default-rootfs.tar.gz
+       cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && sudo -E mv openwrt-armvirt-64-generic-rootfs.tar.gz flash-openwrt-armvirt-64-generic-rootfs.tar.gz
        sudo -E cp -r ${{ env.PACKAGED_OUTPUTPATH }}/* $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64
        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/feeds.buildinfo
