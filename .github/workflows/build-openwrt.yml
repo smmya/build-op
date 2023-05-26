@@ -26,6 +26,7 @@ env:
   DEVICE4: n1-flash
   UPLOAD_DOCKERHUB: true
   UPLOAD_OUTPUT: true
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   
