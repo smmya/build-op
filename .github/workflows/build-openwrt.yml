@@ -9,14 +9,6 @@ on:
         description: 'SSH connection to Actions'
         required: false
         default: 'false'
-      delete_run_by_conclusion_pattern:
-        description: 'Remove workflow by conclusion: action_required, cancelled, failure, skipped, success'
-        required: true
-        default: "All"
-        type: choice
-        options:
-          - cancelled
-          - failure
         
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
@@ -50,4 +42,3 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 90
           keep_minimum_runs: 10
-          delete_run_by_conclusion_pattern: ${{ github.event.inputs.delete_run_by_conclusion_pattern }}
