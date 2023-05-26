@@ -390,7 +390,7 @@ jobs:
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.253_password"
   
-   del_runs:
+   delete_old:
     runs-on: ubuntu-latest
     steps:
     - name: Delete workflow runs
