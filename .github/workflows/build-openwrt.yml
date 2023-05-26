@@ -247,6 +247,7 @@ jobs:
         cd openwrt
         make -j$(nproc)
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
 
     - name: build docker image
       run: |
@@ -347,6 +348,7 @@ jobs:
         cd openwrt
         make -j$(nproc)
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
         
     - name: Package Armvirt as OpenWrt
       uses: unifreq/openwrt_packit@master
