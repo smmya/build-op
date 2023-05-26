@@ -87,6 +87,7 @@ jobs:
         cd openwrt
         make -j$(nproc)
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
@@ -167,6 +168,7 @@ jobs:
         cd openwrt
         make -j$(nproc)
         echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
