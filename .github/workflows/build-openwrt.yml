@@ -404,6 +404,5 @@ jobs:
     - name: Delete workflow runs     
       uses: dev-drprasad/delete-older-releases@v0.2.1
       with:
-          repo: smmya/build-op
           keep_latest: 16
 
