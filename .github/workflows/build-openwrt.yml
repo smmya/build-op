@@ -62,7 +62,7 @@ jobs:
         cd armvirt
         mkdir 64
         cd 64
-        wget https://test.xmmx.cf/openwrt-armvirt-64-default-rootfs.tar.gz
+        wget https://op.maomao.ovh/openwrt-armvirt-64-rootfs.tar.gz
         
     - name: Package Armvirt as OpenWrt
       uses: unifreq/openwrt_packit@master
