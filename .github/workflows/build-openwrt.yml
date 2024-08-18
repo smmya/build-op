@@ -79,6 +79,13 @@ jobs:
        sudo -E ls -sh
        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
 
+    - name: Upload firmware to release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: "n1-flash--${{ env.FILE_DATE }}"
+        artifacts: "openwrt/bin/targets/*/*/*"
+        body: "192.168.123.253_password_n1_flash"
+        
     - name : Upload artifact
       uses: actions/upload-artifact@master
       if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
@@ -87,8 +94,4 @@ jobs:
         path: openwrt/bin
         
     
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.123.253_password_n1_flash"
+
