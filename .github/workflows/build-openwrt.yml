@@ -52,6 +52,7 @@ jobs:
     
     - name: dlop
       run: |
+        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
         mkdir openwrt
         cd openwrt
         mkdir bin
