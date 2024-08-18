@@ -90,7 +90,7 @@ jobs:
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
-        tag: "n1-flash --${{ env.FILE_DATE }}"
+        tag: n1-flash--${{ env.FILE_DATE }}
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.253_password"
   
