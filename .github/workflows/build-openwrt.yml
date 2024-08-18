@@ -24,7 +24,7 @@ env:
   DEVICE4: n1-flash
   UPLOAD_DOCKERHUB: true
   UPLOAD_OUTPUT: true
-  FILE_DATE: $(date +'%Y%m%d')
+  FILE_DATE: $(date +'%Y%m%d%H%M%S')
 
 jobs:
    
@@ -91,5 +91,6 @@ jobs:
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
+        tag: "${{ env.DEVICE4 }}--${{ env.FILE_DATE }}"
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.253_password"
