@@ -24,6 +24,7 @@ env:
   DEVICE4: n1-flash
   UPLOAD_DOCKERHUB: true
   UPLOAD_OUTPUT: true
+  FILE_DATE: $(date +'%Y%m%d')
 
 jobs:
    
@@ -61,12 +62,12 @@ jobs:
         cd armvirt
         mkdir 64
         cd 64
-        wget -O openwrt-armvirt-64-rootfs.tar.gz  https://github.com/smmya/build-op/releases/download/n1-flash--202311081440/flash-openwrt-armvirt-64-generic-rootfs.tar.gz
+        wget -O openwrt-armvirt-64-generic-rootfs.tar.gz  https://op.maomao.ovh/openwrt-armvirt-64-generic-rootfs.tar.gz
         
     - name: Package Armvirt as OpenWrt
       uses: unifreq/openwrt_packit@master
       env:
-         OPENWRT_ARMVIRT: openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-rootfs.tar.gz
+         OPENWRT_ARMVIRT: openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
          PACKAGE_SOC: s905d
          KERNEL_VERSION_NAME: 6.1.99
          SCRIPT_S905D: mk_s905d_n1.sh
@@ -74,10 +75,10 @@ jobs:
          
     - name: sync image
       run: |
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-rootfs.tar.gz
+       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
        sudo -E cp -r /opt/openwrt_packit/output/* $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64
        sudo -E ls -sh
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-rootfs.tar.gz
+       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
 
     - name : Upload artifact
       uses: actions/upload-artifact@master
