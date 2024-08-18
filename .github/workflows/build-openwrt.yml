@@ -61,7 +61,7 @@ jobs:
         cd armvirt
         mkdir 64
         cd 64
-        wget https://op.maomao.ovh/openwrt-armvirt-64-rootfs.tar.gz
+        wget -O openwrt-armvirt-64-rootfs.tar.gz  https://github.com/smmya/build-op/releases/download/n1-flash--202311081440/flash-openwrt-armvirt-64-generic-rootfs.tar.gz
         
     - name: Package Armvirt as OpenWrt
       uses: unifreq/openwrt_packit@master
@@ -90,7 +90,7 @@ jobs:
     - name: Upload firmware to release
       uses: ncipollo/release-action@v1
       with:
-        tag: "${{ env.DEVICE4 }}--${{ env.FILE_DATE }}"
+        tag: "n1-flash --${{ env.FILE_DATE }}"
         artifacts: "openwrt/bin/targets/*/*/*"
         body: "192.168.123.253_password"
   
