@@ -72,6 +72,7 @@ jobs:
          PACKAGE_SOC: s905d
          KERNEL_VERSION_NAME: 6.1.99
          SCRIPT_S905D: mk_s905d_n1.sh
+         KERNEL_AUTO_LATEST: false 
          
     - name: sync image
       run: |
