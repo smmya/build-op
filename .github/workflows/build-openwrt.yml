@@ -22,13 +22,18 @@ on:
   repository_dispatch:
     types: [build-openwrt]
   schedule:
-    # Every Monday at 02:23 Asia/Shanghai (Sunday 18:23 UTC).
-    - cron: '23 18 * * 0'
+    # Every Monday at 02:23 in the repository's operating timezone.
+    - cron: '23 2 * * 1'
+      timezone: Asia/Shanghai
 
 concurrency:
   group: build-openwrt
   cancel-in-progress: false
   queue: max
+
+# All configured triggers are trusted; make the intended cross-run cache
+# lifecycle explicit under GitHub's current cache security model.
+cache-mode: write
 
 env:
   TZ: Asia/Shanghai
