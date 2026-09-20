@@ -1,500 +1,469 @@
-
 name: Build OpenWrt
 
 on:
-  repository_dispatch:
   workflow_dispatch:
     inputs:
-      ssh:
-        description: 'SSH connection to Actions'
-        required: false
-        default: 'false'
-        
+      device:
+        description: Device to build
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - new3
+          - ax1800pro
+          - n1-docker
+          - n1-flash
+      publish:
+        description: Publish Docker image and GitHub Release
+        required: true
+        default: true
+        type: boolean
+  repository_dispatch:
+    types: [build-openwrt]
+  schedule:
+    # Every Monday at 02:23 Asia/Shanghai (Sunday 18:23 UTC).
+    - cron: '23 18 * * 0'
+
+concurrency:
+  group: build-openwrt
+  cancel-in-progress: false
+  queue: max
+
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
-  REPO_URL_LIENOL: https://github.com/Lienol/openwrt
-  REPO_BRANCH_LIENOL: 21.02
-  REPO_URL_IMMORTALWRT: https://github.com/immortalwrt/immortalwrt
-  REPO_BRANCH_IMMORTALWRT: master
-  FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: .config
   TZ: Asia/Shanghai
-  DEVICE1: new3
-  DEVICE2: r3g
-  DEVICE3: n1-docker
-  DEVICE4: n1-flash
-  DEVICE5: ax1800pro
-  UPLOAD_DOCKERHUB: true
-  UPLOAD_OUTPUT: true
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  CCACHE_DIR: ${{ github.workspace }}/openwrt/.ccache
+  CACHE_VERSION: v3
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-   new3:
-    runs-on: ubuntu-latest
-
+  plan:
+    name: Resolve sources and build matrix
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      host_matrix: ${{ steps.matrix.outputs.host_matrix }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@master
-    
-    - name: load environment
-      env:
-          DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq full-upgrade -y
-        sudo -E apt-get -qq install ack neofetch antlr3 aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq install ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool llvm lrzsz genisoimage msmtp ninja-build p7zip p7zip-full patch pkgconf python3 python3-pyelftools python3-setuptools qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 curl gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf
-      
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL_IMMORTALWRT -b $REPO_BRANCH_IMMORTALWRT openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Checkout workflow repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Validate and resolve matrix
+        id: matrix
+        env:
+          SELECTED_DEVICE: ${{ inputs.device || 'all' }}
+        run: |
+          set -euo pipefail
 
-    - name: deal with config
-      run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE1 }}/.config $GITHUB_WORKSPACE/openwrt/
-        cd openwrt
-        echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
-        echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE1 }}/.config $GITHUB_WORKSPACE/openwrt/
-        ./scripts/feeds install -a
+          jq -e '.devices | type == "array" and length > 0' .github/build-matrix.json >/dev/null
+          selected="${SELECTED_DEVICE:-all}"
+          devices=$(jq -c --arg selected "$selected" \
+            '[.devices[] | select($selected == "all" or .device == $selected)]' \
+            .github/build-matrix.json)
 
-    - name: Personalized script
-      run: |
-        cd openwrt
-        sed -i 's/192.168.1.1/192.168.123.1/g' package/base-files/files/bin/config_generate
-        neofetch
+          [[ $(jq 'length' <<<"$devices") -gt 0 ]] || {
+            echo "No device matched: $selected" >&2
+            exit 1
+          }
 
-    - name: Download package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+          enriched='[]'
+          declare -A resolved_sources=()
+          while IFS= read -r row; do
+            device=$(jq -r '.device' <<<"$row")
+            mode=$(jq -r '.mode' <<<"$row")
+            config=$(jq -r '.config' <<<"$row")
+            source_url=$(jq -r '.source_url' <<<"$row")
+            source_branch=$(jq -r '.source_branch' <<<"$row")
 
-    - name: Compile the firmware
-      run: |
-        cd openwrt
-        make -j$(nproc)
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
+            [[ -f "$config" ]] || {
+              echo "$device: config does not exist: $config" >&2
+              exit 1
+            }
+            case "$mode" in
+              router|arm-docker|arm-flash|x86) ;;
+              *) echo "$device: unsupported mode: $mode" >&2; exit 1 ;;
+            esac
 
-    - name : Upload artifact
-      uses: actions/upload-artifact@master
-      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
-      with:
-        name: Op-${{ env.DEVICE1 }}--${{ env.FILE_DATE }}
-        path: openwrt/bin
-        
-    - name: organize
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-    
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: "${{ env.DEVICE1 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.123.1_password"
-    
-        
-        
-   r3g:
-    runs-on: ubuntu-latest
+            source_ref="${source_url}#${source_branch}"
+            source_sha="${resolved_sources[$source_ref]:-}"
+            if [[ -z "$source_sha" ]]; then
+              source_sha=$(git ls-remote "$source_url" "refs/heads/$source_branch" | awk 'NR == 1 {print $1}')
+              resolved_sources[$source_ref]="$source_sha"
+            fi
+            [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "$device: could not resolve $source_url#$source_branch" >&2
+              exit 1
+            }
+
+            row=$(jq -c --arg source_sha "$source_sha" '. + {source_sha: $source_sha}' <<<"$row")
+            enriched=$(jq -c --argjson row "$row" '. + [$row]' <<<"$enriched")
+          done < <(jq -c '.[]' <<<"$devices")
+
+          build_matrix=$(jq -cn --argjson include "$enriched" '{include: $include}')
+          host_include=$(jq -c \
+            'unique_by(.source) | map({source, source_url, source_branch, source_sha, config})' \
+            <<<"$enriched")
+          host_matrix=$(jq -cn --argjson include "$host_include" '{include: $include}')
+
+          echo "build_matrix=$build_matrix" >> "$GITHUB_OUTPUT"
+          echo "host_matrix=$host_matrix" >> "$GITHUB_OUTPUT"
+          jq . <<<"$build_matrix"
+
+  prepare-host-tools:
+    name: Host tools (${{ matrix.source }})
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.host_matrix) }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@master
-    
-    - name: load environment
-      env:
-          DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 neofetch aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 curl gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf
-      
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Checkout workflow repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-    - name: deal with config
-      run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE2 }}/.config $GITHUB_WORKSPACE/openwrt/
-        cd openwrt
-        echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
-        echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE2 }}/.config $GITHUB_WORKSPACE/openwrt/
-        ./scripts/feeds install -a
+      - name: Prepare runner
+        run: .github/scripts/install-build-deps.sh
 
-    - name: Personalized script
-      run: |
-        cd openwrt
-        sed -i 's/192.168.1.1/192.168.12.1/g' package/base-files/files/bin/config_generate
-        neofetch
+      - name: Checkout OpenWrt source
+        env:
+          SOURCE_URL: ${{ matrix.source_url }}
+          SOURCE_SHA: ${{ matrix.source_sha }}
+        run: |
+          git init openwrt
+          git -C openwrt remote add origin "$SOURCE_URL"
+          git -C openwrt fetch --depth=1 origin "$SOURCE_SHA"
+          git -C openwrt checkout --detach FETCH_HEAD
 
-    - name: Download package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+      - name: Configure complete host-tool set
+        env:
+          CONFIG_FILE: ${{ matrix.config }}
+        run: |
+          cp "$CONFIG_FILE" openwrt/.config
+          {
+            echo CONFIG_DEVEL=y
+            echo CONFIG_CCACHE=y
+            echo CONFIG_BUILD_ALL_HOST_TOOLS=y
+          } >> openwrt/.config
+          make -C openwrt defconfig
 
-    - name: Compile the firmware
-      run: |
-        cd openwrt
-        make -j$(nproc)
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
+      - name: Calculate host cache key
+        id: host-key
+        working-directory: openwrt
+        run: echo "fingerprint=$($GITHUB_WORKSPACE/.github/scripts/cache-fingerprint.sh host)" >> "$GITHUB_OUTPUT"
 
-    - name : Upload artifact
-      uses: actions/upload-artifact@master
-      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
-      with:
-        name: Op-${{ env.DEVICE2 }}--${{ env.FILE_DATE }}
-        path: openwrt/bin
-        
-    - name: organize
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-    
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: "${{ env.DEVICE2 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.12.1_password"
-        
-  
-   n1-docker:
-    runs-on: ubuntu-latest
+      - name: Restore host-tool cache
+        id: host-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            openwrt/staging_dir/host
+            openwrt/build_dir/host
+          key: openwrt-host-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ steps.host-key.outputs.fingerprint }}
+          restore-keys: |
+            openwrt-host-${{ env.CACHE_VERSION }}-${{ matrix.source }}-
 
+      - name: Check and prepare host tools
+        env:
+          EXACT_HIT: ${{ steps.host-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.host-cache.outputs.cache-matched-key }}
+        run: |
+          if [[ "$EXACT_HIT" == true ]]; then
+            echo "Exact host-tool cache hit: $MATCHED_KEY"
+          elif [[ -n "$MATCHED_KEY" ]]; then
+            echo "Fallback host-tool cache restored: $MATCHED_KEY"
+          else
+            echo "No usable host-tool cache was found; building it now."
+          fi
+          make -C openwrt -j"$(nproc)" tools/install
+
+      - name: Save host-tool cache
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            openwrt/staging_dir/host
+            openwrt/build_dir/host
+          key: openwrt-host-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ steps.host-key.outputs.fingerprint }}
+
+      - name: Keep two host-tool cache generations
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-caches.sh "openwrt-host-${CACHE_VERSION}-${{ matrix.source }}-" 2
+
+  build:
+    name: Build ${{ matrix.device }}
+    needs: [plan, prepare-host-tools]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: write
+      actions: write
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@master
-    
-    - name: load environment
-      env:
-          DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 neofetch aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 curl gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf
-      
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Checkout workflow repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Prepare runner
+        run: .github/scripts/install-build-deps.sh
 
-    - name: deal with config
-      run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE3 }}/.config $GITHUB_WORKSPACE/openwrt/
-        cd openwrt
-        echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
-        echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE3 }}/.config $GITHUB_WORKSPACE/openwrt/
-        ./scripts/feeds install -a
+      - name: Checkout pinned OpenWrt source
+        env:
+          SOURCE_URL: ${{ matrix.source_url }}
+          SOURCE_SHA: ${{ matrix.source_sha }}
+        run: |
+          git init openwrt
+          git -C openwrt remote add origin "$SOURCE_URL"
+          git -C openwrt fetch --depth=1 origin "$SOURCE_SHA"
+          git -C openwrt checkout --detach FETCH_HEAD
+          echo "SOURCE_SHORT_SHA=${SOURCE_SHA:0:12}" >> "$GITHUB_ENV"
 
-    - name: Personalized script
-      run: |
-        cd openwrt
-        sed -i 's/192.168.1.1/192.168.123.253/g' package/base-files/files/bin/config_generate
-        neofetch
+      - name: Configure feeds and firmware
+        env:
+          CONFIG_FILE: ${{ matrix.config }}
+        run: |
+          grep -q '^src-git kenzo ' openwrt/feeds.conf.default || \
+            echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages' >> openwrt/feeds.conf.default
+          grep -q '^src-git small ' openwrt/feeds.conf.default || \
+            echo 'src-git small https://github.com/kenzok8/small' >> openwrt/feeds.conf.default
 
-    - name: Download package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+          openwrt/scripts/feeds update -a
+          openwrt/scripts/feeds install -a
+          cp "$CONFIG_FILE" openwrt/.config
+          echo CONFIG_CCACHE=y >> openwrt/.config
+          make -C openwrt defconfig
 
-    - name: Compile the firmware
-      run: |
-        cd openwrt
-        make -j$(nproc)
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
+      - name: Apply device settings
+        env:
+          LAN_IP: ${{ matrix.lan_ip }}
+        run: |
+          sed -i "s/192\.168\.1\.1/${LAN_IP}/g" \
+            openwrt/package/base-files/files/bin/config_generate
 
-    - name: build docker image
-      run: |
-       cd $GITHUB_WORKSPACE/ && sudo mkdir make_docker
-       cd $GITHUB_WORKSPACE/make_docker && sudo -E git clone -b main https://github.com/smmya/make_op_n1 make_op_n1-main
-       sudo -E cp $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz  $GITHUB_WORKSPACE/make_docker/make_op_n1-main/
-       cd $GITHUB_WORKSPACE/make_docker/make_op_n1-main && sudo -E bash build.sh latest
-       cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && sudo -E mv openwrt-armvirt-64-generic-rootfs.tar.gz docker-openwrt-armvirt-64-generic-rootfs.tar.gz
-       
-    - name: push docker hub
-      id: push
-      if: env.UPLOAD_DOCKERHUB == 'true' && !cancelled()
-      run: |
-         cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && docker load --input docker-img-openwrt-aarch64-latest.gz
-         docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_TOKEN }}
-         docker push smmya/openwrt-aarch64-n1:latest
-         sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
-         sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/feeds.buildinfo
-         sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic.manifest
-         sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/config.buildinfo
-         sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-Image
+      - name: Calculate cache keys
+        id: cache-keys
+        env:
+          CONFIG_PATH: ${{ github.workspace }}/openwrt/.config
+        working-directory: openwrt
+        run: |
+          echo "host=$($GITHUB_WORKSPACE/.github/scripts/cache-fingerprint.sh host)" >> "$GITHUB_OUTPUT"
+          echo "toolchain=$($GITHUB_WORKSPACE/.github/scripts/cache-fingerprint.sh toolchain "$CONFIG_PATH")" >> "$GITHUB_OUTPUT"
 
-    - name : Upload artifact
-      uses: actions/upload-artifact@master
-      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
-      with:
-        name: Op-${{ env.DEVICE3 }}--${{ env.FILE_DATE }}
-        path: openwrt/bin
-        
-    - name: organize
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-    
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: "${{ env.DEVICE3 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.123.253_password"
-  
-  
-   n1-flash:
-    runs-on: ubuntu-latest
+      - name: Restore host tools
+        id: host-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            openwrt/staging_dir/host
+            openwrt/build_dir/host
+          key: openwrt-host-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ steps.cache-keys.outputs.host }}
 
-    steps:
-    - name: Checkout
-      uses: actions/checkout@master
-    
-    - name: load environment
-      env:
-          DEBIAN_FRONTEND: noninteractive
-      run: |
-        docker rmi `docker images -q`
-        sudo rm -rf  /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* adoptopenjdk* mysql* php* mongodb* dotnet* moby* snapd* || true
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 neofetch aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 curl gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
-       
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Validate host tools
+        run: |
+          [[ "${{ steps.host-cache.outputs.cache-hit }}" == true ]] || {
+            echo "Expected host-tool cache is unavailable; rebuilding safely."
+          }
+          make -C openwrt -j"$(nproc)" tools/install
 
-    - name: deal with config
-      run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE4 }}/.config $GITHUB_WORKSPACE/openwrt/
-        cd openwrt
-        echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
-        echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE4 }}/.config $GITHUB_WORKSPACE/openwrt/
-        ./scripts/feeds install -a
+      - name: Restore target toolchain
+        id: toolchain-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            openwrt/staging_dir/toolchain-*
+            openwrt/build_dir/toolchain-*
+          key: openwrt-toolchain-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ steps.cache-keys.outputs.toolchain }}
+          restore-keys: |
+            openwrt-toolchain-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-
 
-    - name: Personalized script
-      run: |
-        cd openwrt
-        sed -i 's/192.168.1.1/192.168.123.253/g' package/base-files/files/bin/config_generate
-        neofetch
+      - name: Check and prepare target toolchain
+        env:
+          EXACT_HIT: ${{ steps.toolchain-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.toolchain-cache.outputs.cache-matched-key }}
+        run: |
+          if [[ "$EXACT_HIT" == true ]]; then
+            echo "Exact toolchain cache hit: $MATCHED_KEY"
+          elif [[ -n "$MATCHED_KEY" ]]; then
+            echo "Fallback toolchain cache restored: $MATCHED_KEY"
+          else
+            echo "No usable target toolchain cache was found; building it now."
+          fi
+          make -C openwrt -j"$(nproc)" toolchain/install
 
-    - name: Download package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+      - name: Save target toolchain
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            openwrt/staging_dir/toolchain-*
+            openwrt/build_dir/toolchain-*
+          key: openwrt-toolchain-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ steps.cache-keys.outputs.toolchain }}
 
-    - name: Compile the firmware
-      run: |
-        cd openwrt
-        make -j$(nproc)
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
-        
-    - name: Package Armvirt as OpenWrt
-      uses: unifreq/openwrt_packit@master
-      env:
-         OPENWRT_ARMVIRT: openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
-         PACKAGE_SOC: s905d
-         KERNEL_VERSION_NAME: 6.1.29
-         SCRIPT_S905D: mk_s905d_n1.sh
-         
-    - name: sync image
-      run: |
-       cd $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/ && sudo -E mv openwrt-armvirt-64-generic-rootfs.tar.gz flash-openwrt-armvirt-64-generic-rootfs.tar.gz
-       sudo -E cp -r ${{ env.PACKAGED_OUTPUTPATH }}/* $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic-rootfs.tar.gz
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/feeds.buildinfo
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-generic.manifest
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/config.buildinfo
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-Image
-       sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/bin/targets/armvirt/64/openwrt-armvirt-64-default-rootfs.tar.gz
-       
+      - name: Keep two toolchain cache generations
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          .github/scripts/prune-caches.sh
+          "openwrt-toolchain-${CACHE_VERSION}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-"
+          2
 
-    - name : Upload artifact
-      uses: actions/upload-artifact@master
-      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
-      with:
-        name: Op-${{ env.DEVICE4 }}--${{ env.FILE_DATE }}
-        path: openwrt/bin
-        
-    - name: organize
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-    
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: "${{ env.DEVICE4 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.123.253_password"
-  
-   delete_old:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@v2
-      with:
-          token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          retain_days: 30
-          keep_minimum_runs: 10
-        
-    - name: Delete older releases     
-      uses: dev-drprasad/delete-older-releases@v0.2.1
-      with:
-          keep_latest: 16
+      - name: Restore compiler cache
+        id: ccache-restore
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: openwrt/.ccache
+          key: openwrt-ccache-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            openwrt-ccache-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-
 
-   ax1800pro:
-    runs-on: ubuntu-latest
+      - name: Download source packages
+        run: |
+          make -C openwrt -j"$(nproc)" download
+          find openwrt/dl -type f -size -1024c -print -delete
 
-    steps:
-    - name: Checkout
-      uses: actions/checkout@master
-    
-    - name: load environment
-      env:
-          DEBIAN_FRONTEND: noninteractive
-      run: |
-        docker rmi `docker images -q`
-        sudo rm -rf  /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* adoptopenjdk* mysql* php* mongodb* dotnet* moby* snapd* || true
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install ack antlr3 neofetch aria2 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses5-dev libncursesw5-dev libreadline-dev libssl-dev libtool lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python2.7 python3 python3-pip libpython3-dev qemu-utils rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 curl gawk gettext git libncurses5-dev libz-dev patch python3.5 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf
-        sudo timedatectl set-timezone "$TZ"
-        sudo mkdir -p /workdir
-        sudo chown $USER:$GROUPS /workdir
-       
-    - name: Clone source code
-      working-directory: /workdir
-      run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
-        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+      - name: Compile firmware
+        run: |
+          ccache --max-size=512M
+          if ! make -C openwrt -j"$(nproc)"; then
+            echo "Parallel build failed; retrying incrementally with a verbose single job."
+            make -C openwrt -j1 V=s
+          fi
+          ccache --cleanup
+          ccache --show-stats || true
+          echo "BUILD_ID=$(date +'%Y%m%d-%H%M')-r${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
 
-    - name: deal with config
-      run: |
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE5 }}/.config $GITHUB_WORKSPACE/openwrt/
-        cd openwrt
-        echo "src-git kenzo https://github.com/kenzok8/openwrt-packages" >> ./feeds.conf.default
-        echo "src-git small https://github.com/kenzok8/small" >> ./feeds.conf.default
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
-        cp -f $GITHUB_WORKSPACE/${{ env.DEVICE5 }}/.config $GITHUB_WORKSPACE/openwrt/
-        ./scripts/feeds install -a
+      - name: Checkout N1 Docker packager
+        if: matrix.mode == 'arm-docker'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: smmya/make_op_n1
+          ref: 379ed25d5811b3beaae10e64370645978057b9a7
+          path: make_op_n1
 
-    - name: Personalized script
-      run: |
-        cd openwrt
-        sed -i 's/192.168.1.1/192.168.123.1/g' package/base-files/files/bin/config_generate
-        neofetch
+      - name: Build N1 Docker image
+        if: matrix.mode == 'arm-docker'
+        run: |
+          rootfs=$(find openwrt/bin/targets/${{ matrix.target }}/${{ matrix.subtarget }} \
+            -maxdepth 1 -type f -name '*generic-rootfs.tar.gz' -print -quit)
+          if [[ -z "$rootfs" ]]; then
+            rootfs=$(find openwrt/bin/targets/${{ matrix.target }}/${{ matrix.subtarget }} \
+              -maxdepth 1 -type f -name '*rootfs.tar.gz' -print -quit)
+          fi
+          [[ -n "$rootfs" ]] || { echo 'ARM rootfs tarball not found' >&2; exit 1; }
+          cp "$rootfs" make_op_n1/openwrt-armvirt-64-generic-rootfs.tar.gz
+          (cd make_op_n1 && bash build.sh latest)
 
-    - name: Download package
-      run: |
-        cd openwrt
-        make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+      - name: Push N1 Docker image
+        if: matrix.mode == 'arm-docker' && (github.event_name != 'workflow_dispatch' || inputs.publish)
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          if [[ -z "$DOCKER_USERNAME" || -z "$DOCKER_TOKEN" ]]; then
+            echo 'Docker credentials are unavailable; skipping Docker Hub push.'
+            exit 0
+          fi
+          printf '%s' "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+          docker push smmya/openwrt-aarch64-n1:latest
+          docker logout
 
-    - name: Compile the firmware
-      run: |
-        cd openwrt
-        make -j$(nproc)
-        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        sudo -E rm -rf $GITHUB_WORKSPACE/openwrt/build_dir/
-        
+      - name: Locate ARM rootfs for flash packaging
+        if: matrix.mode == 'arm-flash'
+        run: |
+          rootfs=$(find openwrt/bin/targets/${{ matrix.target }}/${{ matrix.subtarget }} \
+            -maxdepth 1 -type f -name '*generic-rootfs.tar.gz' -print -quit)
+          if [[ -z "$rootfs" ]]; then
+            rootfs=$(find openwrt/bin/targets/${{ matrix.target }}/${{ matrix.subtarget }} \
+              -maxdepth 1 -type f -name '*rootfs.tar.gz' -print -quit)
+          fi
+          [[ -n "$rootfs" ]] || { echo 'ARM rootfs tarball not found' >&2; exit 1; }
+          echo "OPENWRT_ARMVIRT=$rootfs" >> "$GITHUB_ENV"
 
-    - name : Upload artifact
-      uses: actions/upload-artifact@master
-      if: env.UPLOAD_OUTPUT == 'true' && !cancelled()
-      with:
-        name: Op-${{ env.DEVICE5 }}--${{ env.FILE_DATE }}
-        path: openwrt/bin
-        
-    - name: organize
-      run: |
-        cd openwrt/bin/targets/*/*
-        rm -rf packages
-    
-    - name: Upload firmware to release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: "${{ env.DEVICE5 }}--${{ env.FILE_DATE }}"
-        artifacts: "openwrt/bin/targets/*/*/*"
-        body: "192.168.123.1_password"
-        
-    - name: Delete older releases     
-      uses: dev-drprasad/delete-older-releases@v0.2.1
-      with:
-          keep_latest: 16
+      - name: Package N1 flash image
+        if: matrix.mode == 'arm-flash'
+        uses: unifreq/openwrt_packit@a46b4f5d201ab99eba0ddc7c2e7cd67412fc3d5c
+        env:
+          OPENWRT_ARMVIRT: ${{ env.OPENWRT_ARMVIRT }}
+          PACKAGE_SOC: s905d
+          KERNEL_VERSION_NAME: 6.1.29
+          SCRIPT_S905D: mk_s905d_n1.sh
+
+      - name: Copy N1 flash images into target output
+        if: matrix.mode == 'arm-flash'
+        run: |
+          [[ -n "${PACKAGED_OUTPUTPATH:-}" && -d "$PACKAGED_OUTPUTPATH" ]] || {
+            echo 'Packaged output directory was not produced' >&2
+            exit 1
+          }
+          cp -a "$PACKAGED_OUTPUTPATH"/. \
+            openwrt/bin/targets/${{ matrix.target }}/${{ matrix.subtarget }}/
+
+      - name: Collect release files and compressed workflow artifact
+        run: >-
+          .github/scripts/collect-output.sh
+          "${{ matrix.device }}"
+          "${{ matrix.target }}"
+          "${{ matrix.subtarget }}"
+          "$BUILD_ID"
+
+      - name: Upload compressed firmware bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.device }}-${{ env.BUILD_ID }}
+          path: ${{ env.BUNDLE }}
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Save compiler cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: openwrt/.ccache
+          key: openwrt-ccache-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Keep two compiler cache generations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          .github/scripts/prune-caches.sh
+          "openwrt-ccache-${CACHE_VERSION}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-"
+          2
+
+      - name: Publish GitHub Release
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEVICE: ${{ matrix.device }}
+          MODE: ${{ matrix.mode }}
+          LAN_IP: ${{ matrix.lan_ip }}
+          SOURCE_SHA: ${{ matrix.source_sha }}
+        run: |
+          tag="${DEVICE}-${BUILD_ID}"
+          cat > release-notes.md <<EOF
+          Device: ${DEVICE}
+          Build mode: ${MODE}
+          Default LAN IP: ${LAN_IP}
+          Upstream commit: ${SOURCE_SHA}
+          Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+          gh release create "$tag" "$RELEASE_DIR"/* \
+            --title "${DEVICE} ${BUILD_ID}" \
+            --notes-file release-notes.md \
+            --target "$GITHUB_SHA"
+
+      - name: Keep seven Releases for this device
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/prune-releases.sh "${{ matrix.device }}-" 7
