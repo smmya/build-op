@@ -2,7 +2,7 @@
 set -euo pipefail
 
 prefix="${1:?usage: prune-caches.sh <key-prefix> [keep]}"
-keep="${2:-2}"
+keep="${2:-1}"
 
 mapfile -t cache_ids < <(
   gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/caches?per_page=100" \
@@ -18,4 +18,3 @@ for cache_id in "${cache_ids[@]}"; do
   echo "Deleting old cache id ${cache_id} (${prefix}*)"
   gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/caches/${cache_id}"
 done
-

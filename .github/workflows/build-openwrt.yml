@@ -56,6 +56,8 @@ jobs:
     steps:
       - name: Checkout workflow repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Validate and resolve matrix
         id: matrix
@@ -132,6 +134,8 @@ jobs:
     steps:
       - name: Checkout workflow repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Prepare runner
         run: .github/scripts/install-build-deps.sh
@@ -197,11 +201,11 @@ jobs:
             openwrt/build_dir/host
           key: openwrt-host-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ steps.host-key.outputs.fingerprint }}
 
-      - name: Keep two host-tool cache generations
+      - name: Keep latest host-tool cache generation
         if: steps.host-cache.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: .github/scripts/prune-caches.sh "openwrt-host-${CACHE_VERSION}-${{ matrix.source }}-" 2
+        run: .github/scripts/prune-caches.sh "openwrt-host-${CACHE_VERSION}-${{ matrix.source }}-" 1
 
   build:
     name: Build ${{ matrix.device }}
@@ -218,6 +222,8 @@ jobs:
     steps:
       - name: Checkout workflow repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Prepare runner
         run: .github/scripts/install-build-deps.sh
@@ -314,14 +320,14 @@ jobs:
             openwrt/build_dir/toolchain-*
           key: openwrt-toolchain-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ steps.cache-keys.outputs.toolchain }}
 
-      - name: Keep two toolchain cache generations
+      - name: Keep latest toolchain cache generation
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           .github/scripts/prune-caches.sh
           "openwrt-toolchain-${CACHE_VERSION}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-"
-          2
+          1
 
       - name: Restore compiler cache
         id: ccache-restore
@@ -355,6 +361,7 @@ jobs:
           repository: smmya/make_op_n1
           ref: 379ed25d5811b3beaae10e64370645978057b9a7
           path: make_op_n1
+          persist-credentials: false
 
       - name: Build N1 Docker image
         if: matrix.mode == 'arm-docker'
@@ -393,15 +400,18 @@ jobs:
               -maxdepth 1 -type f -name '*rootfs.tar.gz' -print -quit)
           fi
           [[ -n "$rootfs" ]] || { echo 'ARM rootfs tarball not found' >&2; exit 1; }
-          echo "OPENWRT_ARMVIRT=$rootfs" >> "$GITHUB_ENV"
+          echo "OPENWRT_ARMSR=$rootfs" >> "$GITHUB_ENV"
 
       - name: Package N1 flash image
         if: matrix.mode == 'arm-flash'
         uses: unifreq/openwrt_packit@a46b4f5d201ab99eba0ddc7c2e7cd67412fc3d5c
         env:
-          OPENWRT_ARMVIRT: ${{ env.OPENWRT_ARMVIRT }}
+          OPENWRT_ARMSR: ${{ env.OPENWRT_ARMSR }}
           PACKAGE_SOC: s905d
-          KERNEL_VERSION_NAME: 6.1.29
+          KERNEL_REPO_URL: breakingbadboy/OpenWrt
+          KERNEL_VERSION_NAME: 6.12.y
+          KERNEL_AUTO_LATEST: 'true'
+          OPENWRT_IP: ${{ matrix.lan_ip }}
           SCRIPT_S905D: mk_s905d_n1.sh
 
       - name: Copy N1 flash images into target output
@@ -437,13 +447,13 @@ jobs:
           path: openwrt/.ccache
           key: openwrt-ccache-${{ env.CACHE_VERSION }}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Keep two compiler cache generations
+      - name: Keep latest compiler cache generation
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           .github/scripts/prune-caches.sh
           "openwrt-ccache-${CACHE_VERSION}-${{ matrix.source }}-${{ matrix.target }}-${{ matrix.subtarget }}-${{ matrix.arch }}-"
-          2
+          1
 
       - name: Publish GitHub Release
         if: github.event_name != 'workflow_dispatch' || inputs.publish
