@@ -1,0 +1,52 @@
+{
+  "devices": [
+    {
+      "device": "new3",
+      "mode": "router",
+      "source": "immortalwrt",
+      "source_url": "https://github.com/immortalwrt/immortalwrt.git",
+      "source_branch": "master",
+      "config": "new3/.config",
+      "target": "ramips",
+      "subtarget": "mt7621",
+      "arch": "mipsel_24kc",
+      "lan_ip": "192.168.123.1"
+    },
+    {
+      "device": "ax1800pro",
+      "mode": "router",
+      "source": "lede",
+      "source_url": "https://github.com/coolsnowwolf/lede.git",
+      "source_branch": "master",
+      "config": "ax1800pro/.config",
+      "target": "qualcommax",
+      "subtarget": "ipq60xx",
+      "arch": "aarch64_cortex-a53",
+      "lan_ip": "192.168.123.1"
+    },
+    {
+      "device": "n1-docker",
+      "mode": "arm-docker",
+      "source": "lede",
+      "source_url": "https://github.com/coolsnowwolf/lede.git",
+      "source_branch": "master",
+      "config": "n1-docker/.config",
+      "target": "armvirt",
+      "subtarget": "64",
+      "arch": "aarch64_cortex-a53",
+      "lan_ip": "192.168.123.253"
+    },
+    {
+      "device": "n1-flash",
+      "mode": "arm-flash",
+      "source": "lede",
+      "source_url": "https://github.com/coolsnowwolf/lede.git",
+      "source_branch": "master",
+      "config": "n1-flash/.config",
+      "target": "armvirt",
+      "subtarget": "64",
+      "arch": "aarch64_generic",
+      "lan_ip": "192.168.123.253"
+    }
+  ]
+}
